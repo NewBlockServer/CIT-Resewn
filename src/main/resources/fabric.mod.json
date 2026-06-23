@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "citresewn",
+  "version": "${mod_version}",
+  "name": "CIT Resewn",
+  "description": "CIT (Custom Item Textures) implementation for Fabric",
+  "authors": [
+    "NewBlockTeam",
+    "SHsuperCM"
+  ],
+  "license": "MIT",
+  "icon": "assets/citresewn/logo.png",
+  "contact": {
+    "homepage": "https://newblock.top/",
+    "sources": "https://github.com/NewBlockServer/CIT-Resewn",
+    "issues": "https://github.com/NewBlockServer/CIT-Resewn/issues"
+  },
+
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "top.newblock.citresewn.CITResewn"
+    ],
+    "modmenu": [
+      "top.newblock.citresewn.config.CITResewnModMenu"
+    ]
+  },
+  "mixins": [
+    "citresewn.mixins.json",
+    "citresewn-defaults.mixins.json"
+  ],
+  "depends": {
+    "fabric-api": "*",
+    "fabricloader": "*",
+    "minecraft": "${mod_target_mc}"
+  },
+  "recommends": {
+    "modmenu": "*",
+    "cloth-config2": "*"
+  },
+  "breaks": {
+    "canvas": "*"
+  }
+}
