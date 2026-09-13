@@ -4,7 +4,6 @@ import top.newblock.citresewn.fletchingtable.api.Entrypoint;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.LayeringTransform;
-import net.minecraft.client.renderer.rendertype.OutputTarget;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.TextureTransform;
@@ -122,12 +121,12 @@ public class TypeEnchantment extends CITType {
     public RenderType getItemGlintLayer(boolean translucent) {
         if (translucent) {
             if (this.itemGlintTranslucentLayer == null)
-                this.itemGlintTranslucentLayer = createItemGlintLayer("glint_translucent", OutputTarget.ITEM_ENTITY_TARGET);
+                this.itemGlintTranslucentLayer = createItemGlintLayer("glint_translucent");
             return this.itemGlintTranslucentLayer;
         }
 
         if (this.itemGlintLayer == null)
-            this.itemGlintLayer = createItemGlintLayer("glint", null);
+            this.itemGlintLayer = createItemGlintLayer("glint");
         return this.itemGlintLayer;
     }
 
@@ -136,19 +135,31 @@ public class TypeEnchantment extends CITType {
             RenderSetup.RenderSetupBuilder builder = RenderSetup.builder(RenderPipelines.GLINT)
                     .withTexture("Sampler0", this.texture)
                     .setTextureTransform(getArmorTextureTransform())
-                    .setLayeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING);
+                    .setLayeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                    .withForcedSolidModelPhase();
             this.armorGlintLayer = RenderLayerInvoker.citresewn$of("citresewn_armor_glint_" + this.texture, builder.createRenderSetup());
         }
 
         return this.armorGlintLayer;
     }
 
-    private RenderType createItemGlintLayer(String kind, OutputTarget outputTarget) {
+    /**
+     * 26.3 removed {@code OutputTarget} along with the whole separate-render-target mechanism
+     * (there is no {@code LevelRenderer.itemEntityTarget()} any more), so the old
+     * "glint" / "glint_translucent" split no longer selects different pipelines. Both variants
+     * are now the GLINT pipeline over the custom texture; they are kept as separate cached
+     * types only to preserve their distinct names.
+     * <p>
+     * {@code withForcedSolidModelPhase()} mirrors what vanilla does for its own plain-GLINT
+     * render types ({@code trimmed_armor_glint}, {@code patterned_shield_glint}): GLINT blends,
+     * and without this a submit can be routed to an OIT stage, which throws for a render type
+     * that has no OIT pipeline set.
+     */
+    private RenderType createItemGlintLayer(String kind) {
         RenderSetup.RenderSetupBuilder builder = RenderSetup.builder(RenderPipelines.GLINT)
                 .withTexture("Sampler0", this.texture)
-                .setTextureTransform(getItemTextureTransform());
-        if (outputTarget != null)
-            builder.setOutputTarget(outputTarget);
+                .setTextureTransform(getItemTextureTransform())
+                .withForcedSolidModelPhase();
 
         return RenderLayerInvoker.citresewn$of("citresewn_" + kind + "_" + this.texture, builder.createRenderSetup());
     }
