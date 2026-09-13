@@ -66,7 +66,9 @@ jobs:
           # 版本形如 1.0.0+26.3-rc-2：'+' 前是模组版本，后是适配的游戏版本
           MOD="${VERSION%%+*}"
           GAME="${VERSION#*+}"
-          [ "$GAME" = "$VERSION" ] && GAME="未知"
+          if [ "$GAME" = "$VERSION" ]; then
+            GAME="未知"
+          fi
           SHORT_SHA=${GITHUB_SHA::7}
 
           {
@@ -92,7 +94,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.sha }}
-          name: CIT Resewn ${{ steps.ver.outputs.mod }} for ${{ steps.ver.outputs.game }} (${{ steps.ver.outputs.sha }})
+          name: CIT Resewn ${{ steps.ver.outputs.version }} (${{ steps.ver.outputs.sha }})
           body: |
             | | |
             |---|---|
