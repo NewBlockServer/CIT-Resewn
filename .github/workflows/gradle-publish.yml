@@ -94,6 +94,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.sha }}
+          # 必须显式指定：不传时 GitHub 会把 tag 建在默认分支的当前 HEAD 上，
+          # 而不是触发本次构建的提交。加了 concurrency 排队后，一次运行可能
+          # 晚于后续 push 才执行，那样 tag 名里的 SHA 和实际指向的提交就会对不上。
+          target_commitish: ${{ github.sha }}
           name: CIT Resewn ${{ steps.ver.outputs.version }} (${{ steps.ver.outputs.sha }})
           body: |
             | | |
