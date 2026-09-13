@@ -1,19 +1,25 @@
-name: Gradle 提交自动构建
+name: 构建与发布
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - '26.2'
+      - '26.3'
   release:
     types: [created]
+
+# 同一分支/标签上的重复触发排队执行，避免并发写同一个 Release 互相覆盖
+concurrency:
+  group: build-${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 更改为 write，允许创建 Release 和上传资产
-      packages: write
+      contents: write
 
     steps:
       - uses: actions/checkout@v6
@@ -27,37 +33,88 @@ jobs:
           java-version: '25'
 
       - uses: gradle/actions/setup-gradle@v5.0.0
-      
-      - name: Build
+
+      - name: 构建
         run: |
           chmod +x gradlew
           ./gradlew build
 
+      # 版本号从构建产物里读，而不是再解析一遍 gradle.properties：
+      # 这样 tag 永远等于 jar 里实际写着的版本，不会和 build.gradle 的
+      # "${mod.version}+${minecraft_version}" 拼装逻辑脱节。
+      - name: 读取版本号
+        id: ver
+        run: |
+          set -eu
+          JAR=""
+          for f in build/libs/*.jar; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *-sources.jar) continue ;;
+            esac
+            JAR="$f"
+            break
+          done
+          if [ -z "$JAR" ]; then
+            echo "::error::未找到构建产物（build/libs/*.jar 为空）"
+            exit 1
+          fi
+
+          VERSION=$(unzip -p "$JAR" fabric.mod.json \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
+
+          # 版本形如 1.0.0+26.3-rc-2：'+' 前是模组版本，后是适配的游戏版本
+          MOD="${VERSION%%+*}"
+          GAME="${VERSION#*+}"
+          [ "$GAME" = "$VERSION" ] && GAME="未知"
+          SHORT_SHA=${GITHUB_SHA::7}
+
+          {
+            echo "version=$VERSION"
+            echo "mod=$MOD"
+            echo "game=$GAME"
+            echo "sha=$SHORT_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "产物：$JAR"
+          echo "模组：$MOD  游戏：$GAME  提交：$SHORT_SHA"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: gradle-build-arm
+          name: citresewn-${{ steps.ver.outputs.version }}
           path: build/libs/*.jar
+          if-no-files-found: error
 
-      - name: 发布到 GitHub Packages
-        if: github.event_name == 'release'
-        run: ./gradlew publish --parallel --build-cache
-        env:
-          USERNAME: ${{ github.actor }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 自动发布到 GitHub Releases
+      # push / 手动触发 -> 生成带版本号的预发布 Release
+      # tag 形如 v1.0.0+26.3-rc-2-2e5f7e8（版本 + 短 SHA，保证唯一且可追溯到提交）
+      - name: 发布预发布 Release
+        if: github.event_name != 'release'
         uses: softprops/action-gh-release@v2
-        if: |
-          github.event_name == 'release' || 
-          github.event_name == 'push' || 
-          github.event_name == 'workflow_dispatch'
         with:
-          # 如果是 push 或手动触发，自动生成一个临时 tag（例如：v-commitSHA）
-          tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || format('v-{0}', github.sha) }}
-          name: ${{ github.event_name == 'release' && github.event.release.name || format('自动构建发布 - {0}', github.sha) }}
+          tag_name: v${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.sha }}
+          name: CIT Resewn ${{ steps.ver.outputs.mod }} for ${{ steps.ver.outputs.game }} (${{ steps.ver.outputs.sha }})
+          body: |
+            | | |
+            |---|---|
+            | 模组版本 | `${{ steps.ver.outputs.mod }}` |
+            | 适配游戏 | `${{ steps.ver.outputs.game }}` |
+            | 完整版本 | `${{ steps.ver.outputs.version }}` |
+            | 分支 | `${{ github.ref_name }}` |
+            | 提交 | ${{ github.sha }} |
+
+            自动构建产物，非正式发布。
           draft: false
-          prerelease: ${{ github.event_name != 'release' }} # 非正式 release 触发时，标记为预发布
-          files: |
-            build/libs/*.jar
+          prerelease: true
+          files: build/libs/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 正式 Release -> 只附加产物，不动 tag / 标题 / 说明（保留手写的发布说明）
+      - name: 附加产物到正式 Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: build/libs/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
