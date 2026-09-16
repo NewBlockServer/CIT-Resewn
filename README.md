@@ -3,4 +3,4 @@ https://github.com/SHsuperCM/CITResewn
 
 分支说明：
 - `26.2` — 适配 Minecraft 26.2
-- `26.3` — 适配 Minecraft 26.3（当前为 26.3-rc-2）
+- `26.3` — 适配 Minecraft 26.3
